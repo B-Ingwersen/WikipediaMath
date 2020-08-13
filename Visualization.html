@@ -1,0 +1,723 @@
+<!--
+Visualization.html
+Provides the user interface through which a user can interact with the
+visualizations of Wikipedia math articles by dynamically loading content
+from the ContentServer
+
+Author: Bryan Ingwersen
+Date: April 10, 2020
+-->
+<html>
+<head>
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    <style>
+        body {
+            margin : 0;
+            padding : 0;
+        }
+
+        .vis-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        #network-diagram-container {
+            height: 800px;
+            width: 800px;
+            position: relative;
+        }
+
+        #network-diagram-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #side-bar {
+            overflow: scroll;
+            background-color: #DDDDDD;
+        }
+    </style>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body class="w3-light-grey">
+
+    <div class="w3-bar w3-indigo" style="height: 40px;">
+        <button class="w3-bar-item w3-button w3-hover-blue" onclick="setDisplayNetworkGraph()">Network Graph</a>
+        <button class="w3-bar-item w3-button w3-hover-blue" onclick="setDisplayArticleData()">Article Data</a>
+        <button class="w3-bar-item w3-button w3-hover-blue" onclick="setDisplayEditorData()">Editor Data</a>
+        <button class="w3-bar-item w3-button w3-hover-blue" onclick="setDisplayArticleInfo('')">Article Info</a>
+    </div>
+    <div style="position: absolute; top: 40px; bottom: 0; left: 0; right: 0;">
+        <div style="width: 100%; height: 100%; display: flex;" id='vis-network-graph' class='vis-container'>
+            <div style="width: 800px; height: 100%;">
+                <div id='network-diagram-container' class='w3-white'>
+                    <canvas id='network-diagram-canvas' width='800px' height='800px'></canvas>
+                    <canvas id='network-diagram-overlay' width='800px' height='800px'></canvas>
+                </div>
+                <div id='extra-display' style='color: green;' class='w3-center w3-xxlarge'></div>
+            </div>
+            <div style="width: 2px; height: 100%; background-color: #808080;"></div>
+            <div style="height: 100%; position: relative; flex-grow: 1;">
+                <div style="width: 100%; height: 50px; display: flex;">
+                    <button style="height: 50px;" class="w3-button w3-grey w3-center w3-xlarge" id='network-diagram-back-btn'>Home</button>
+                    <div id='network-diagram-title' class="w3-grey w3-block w3-padding w3-center w3-xlarge" style="flex-grow: 1; height: 50px;"></div>
+                </div>
+                <div style="position: absolute; left: 0; right: 0; top: 50px; bottom: 0; display: flex;">
+                    <div id='side-bar' style="width: 450px; height: 100%; overflow-y: scroll;"></div>
+                    <div id='network-diagram-right' style='flex-grow: 1; height: 100%; overflow-y: scroll;' class='w3-padding'>
+                        <div id='network-diagram-graph-container' style="height: 500px; width: 100%;"></div>
+                        <h2>Category Info</h2>
+                        <div id='network-diagram-category-info' style="font-size: 1em;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="width: 100%; height: 100%; display: none;" class='vis-container' id='vis-article-data'>
+            <div style="width: 100%; height: 100%;">
+                <div style="width: 100%; height: 50px; display: flex; justify-content: center; margin: 15px;">
+                    <select id="article-data-selectY" class="w3-select w3-white w3-card w3-center" style="width: 500px; font-size: 1.5em;">
+                        <option value="Number of Outgoing Links">Outgoing Links</option>
+                        <option value="Page Rank">Page Rank</option>
+                        <option value="Number of Edits">Edits (Last 5 Years)</option>
+                        <option value="Average Monthly Page Views">Average Monthly Views</option>
+                        <option value="Number of Editors">Number of Editors</option>
+                        <option value="Number of Flagged Edits">Number of Flagged Edits</option>
+                        <option value="Student Reference Index">Student Reference Index</option>
+                        <option value="Number of Incoming Links">Incoming Links</option>
+                        <option value="Article Size">Article Size (Characters)</option>
+                    </select>
+                    <div class="w3-center" style='font-size: 1.5em; margin-left: 30px; margin-right: 30px; margin-top: 5px;'>
+                        vs.
+                    </div>
+                    <select id="article-data-selectX" class="w3-select w3-white w3-card w3-center" style="width: 500px; font-size: 1.5em;">
+                        <option value="Number of Outgoing Links">Outgoing Links</option>
+                        <option value="Page Rank">Page Rank</option>
+                        <option value="Number of Edits">Edits (Last 5 Years)</option>
+                        <option value="Average Monthly Page Views">Average Monthly Views</option>
+                        <option value="Number of Editors">Number of Editors</option>
+                        <option value="Number of Flagged Edits">Number of Flagged Edits</option>
+                        <option value="Student Reference Index">Student Reference Index</option>
+                        <option value="Number of Incoming Links">Incoming Links</option>
+                        <option value="Article Size">Article Size (Characters)</option>
+                    </select>
+                </div>
+                <div class="w3-padding" style="position: absolute; top: 80px; bottom: 0; left: 0; right: 0;" id="article-data-graph-container">
+
+                </div>
+            </div>
+        </div>
+        <div style="width: 100%; height: 100%; display: none;" class='vis-container' id='vis-editor-data'>
+            <div style="width: 100%; height: 100%;">
+                <div style="width: 100%; height: 50px; display: flex; justify-content: center; margin: 15px;" class='w3-margin'>
+                    <select id="editor-data-selectY" class="w3-select w3-white w3-card w3-center" style="width: 500px; font-size: 1.5em;">
+                        <option value="Number of Edits">Edits Made</option>
+                        <option value="Number of Flagged Edits">Flagged Edits</option>
+                        <option value="Additions">Total Additions (characters)</option>
+                        <option value="Deletions">Total Deletions (characters)</option>
+                        <option value="Changes">Total Changes (characters)</option>
+                        <option value="Non-Flagged Additions">Non-Flagged Additions (characters)</option>
+                        <option value="Non-Flagged Deletions">Non-Flagged Deletions (characters)</option>
+                        <option value="Non-Flagged Changes">Non-Flagged Changes (characters)</option>
+                    </select>
+                    <div class="w3-center" style='font-size: 1.5em; margin-left: 30px; margin-right: 30px; margin-top: 5px;'>
+                        vs.
+                    </div>
+                    <select id="editor-data-selectX" class="w3-select w3-white w3-card w3-center" style="width: 500px; font-size: 1.5em;">
+                        <option value="Number of Edits">Edits Made</option>
+                        <option value="Number of Flagged Edits">Flagged Edits</option>
+                        <option value="Additions">Total Additions (characters)</option>
+                        <option value="Deletions">Total Deletions (characters)</option>
+                        <option value="Changes">Total Changes (characters)</option>
+                        <option value="Non-Flagged Additions">Non-Flagged Additions (characters)</option>
+                        <option value="Non-Flagged Deletions">Non-Flagged Deletions (characters)</option>
+                        <option value="Non-Flagged Changes">Non-Flagged Changes (characters)</option>
+                    </select>
+                </div>
+                <div class="w3-padding" style="position: absolute; top: 80px; bottom: 0; left: 0; right: 0;" id="editor-data-graph-container">
+
+                </div>
+            </div>
+        </div>
+        <div style="width: 100%; height: 100%; display: none;" id='vis-article-info' class='vis-container'>
+            <div style="width: 100%; height: 100%;">
+                <div class="w3-center" style='width: 100%; height: 80px; display: flex; justify-content: center;'>
+                    <form id='article-info-form'>
+                        <input class='w3-input w3-card w3-center' type='text' id='article-info-title-box'
+                        style='width: 800px; height: 60px; margin-top: 10px; font-size: 2em;'
+                        placeholder="Enter an Article Title">
+                    </form>
+                </div>
+                <div style='position: absolute; top: 80px; bottom: 0; left: 0; right: 0; display: flex;'>
+                    <div style='height: 100%; width: 400px; padding: 20px;'>
+                        <h2>Article Info:</h2>
+                        <div id='article-info-article-info' style="font-size: 1.2em;"></div>
+                    </div>
+                    <div style='height: 100%; flex-grow: 2;' id='article-info-graph1-container'>
+
+                    </div>
+                    <div style="width: 10px; height: 100%;"></div>
+                    <div style='height: 100%; flex-grow: 2;' id='article-info-graph2-container'>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // PLOTLY GLUE CODE
+
+        // default mathjax code that is included with plotly graphs
+        window.PlotlyConfig = {MathJaxConfig: 'local'};
+        // inject python generated plotly code "newHTML" into a specied node "div";
+        // calling again with the "id" allows plotly to reuse WebGL contexts
+        function replacePlotlyGraph(div, newHTML, id) {
+            // extract the html div tag that plotly builds the graph in
+            var scriptSeperator = newHTML.search('<script');
+            var divText = newHTML.slice(newHTML.search('<div '), scriptSeperator);
+            plotlyIdStart = divText.search('id="') + 4;
+            plotlyIdEnd = plotlyIdStart + divText.slice(plotlyIdStart).search('"');
+            plotlyId = divText.slice(plotlyIdStart, plotlyIdEnd);
+
+            // extract and run the plotly script that actually builds the graph
+            // (note this does NOT include the full plotly.js; that is loaded
+            // once at for the entire webpage)
+            var scriptOuter = newHTML.slice(scriptSeperator, newHTML.length)
+            var scriptInnerStart = scriptOuter.search(">") + 1;
+            var scriptInnerEnd = scriptOuter.search("<" + "/script>");
+            var scriptInner = scriptOuter.slice(scriptInnerStart, scriptInnerEnd);
+            scriptInner = scriptInner.split(plotlyId).join(id);
+            scriptInner = scriptInner.replace('"height": 600, ', '');
+
+            if (div.children.length >= 1) {
+                // tell plotly to reuse the graph currently in place
+                scriptInner = scriptInner.replace('Plotly.newPlot', 'Plotly.react');
+            }
+            else {
+                // create a new div element for plotly to build the graph in
+                div.innerHTML = '<div id="' + id + '" class="plotly-graph-div" style="height:100%; width:100%;"></div>'
+            }
+            eval(scriptInner);
+        }
+
+        // VISUALIZATION CODE
+
+        // switch the tab to the html div with id "containerID"
+        function switchToDisplay(containerID) {
+            // hide all of the tabs
+            var visualizationContainers = document.getElementsByClassName('vis-container');
+            for (let vis of visualizationContainers) {
+                vis.style.display = 'none';
+            }
+
+            // display the desired tab (with id 'containerID')
+            var node = document.getElementById(containerID);
+            node.style.display = 'flex';
+
+            // fire a resize event to make plotly display correctly
+            window.dispatchEvent(new Event('resize'));
+        }
+        // display the network graph tab
+        function setDisplayNetworkGraph() {
+            switchToDisplay('vis-network-graph');
+            window.dispatchEvent(new Event('resize'));
+        }
+        // display the article data tab
+        function setDisplayArticleData() {
+            switchToDisplay('vis-article-data');
+            articleData_buildGraph();
+        }
+        // display the editor data tab
+        function setDisplayEditorData() {
+            switchToDisplay('vis-editor-data');
+            editorData_buildGraph();
+        }
+        // display the article info tab
+        function setDisplayArticleInfo(title) {
+            switchToDisplay('vis-article-info');
+            if (title != '') {
+                document.getElementById('article-info-title-box').value = title;
+                articleInfo_displayArticle();
+            }
+        }
+
+        // ARTICLE INFO CODE
+
+        // display the article info when the user enters a title in the text box
+        document.getElementById('article-info-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            articleInfo_displayArticle();
+        });
+        // load and display the components of the article info page
+        function articleInfo_displayArticle() {
+            var title = document.getElementById('article-info-title-box').value;
+            if (title == '') {
+                return;
+            }
+
+            // load page view plot
+            var xhttp = new XMLHttpRequest();
+            var url = 'PageViews?article=' + title;
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    var text = xhttp.responseText;
+                    var div = document.getElementById('article-info-graph1-container');
+                    replacePlotlyGraph(div, text, 'article-info-pageview-plot');
+                    window.dispatchEvent(new Event('resize'));
+                }
+            };
+            xhttp.open("GET", url, true);
+            xhttp.send();
+
+            // load edit plot
+            var xhttp2 = new XMLHttpRequest();
+            var url2 = 'EditHistory?article=' + title;
+            xhttp2.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    var text = xhttp2.responseText;
+                    var div = document.getElementById('article-info-graph2-container');
+                    replacePlotlyGraph(div, text, 'article-info-edits-plot');
+                    window.dispatchEvent(new Event('resize'));
+                }
+            };
+            xhttp2.open("GET", url2, true);
+            xhttp2.send();
+
+            // load article info
+            var xhttp3 = new XMLHttpRequest();
+            xhttp3.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    var info = JSON.parse(xhttp3.responseText);
+                    
+                    document.getElementById('article-info-article-info').innerHTML =
+                    '<ul class="w3-ul">' + 
+                    '<li>Size (characters): ' + info.size + '</li>' +
+                    '<li>Views (last 5 years): ' + info.numViews + '</li>' +
+                    '<li>Outgoing Links: ' + info.numOutLinks + '</li>' +
+                    '<li>Incoming Links: ' + info.numInLinks + '</li>' +
+                    '<li>Edits: ' + info.numEdits + '</li>' + 
+                    '<li>Flagged Edits: ' + info.numFlaggedEdits + '</li>' +
+                    '<li>Editors: ' + info.numEditors + '</li>' +
+                    '<li>Page Rank: ' + Math.round(info.pageRank * 100000000) / 100000000 + '</li>' +
+                    '<li>Student Reference Index: ' + Math.round(info.sri * 1000) / 1000 + '</li>' +
+                    '</ul>';
+                }
+            };
+            var url3 = "ArticleInfo?article=" + title;
+            xhttp3.open("GET", url3, true);
+            xhttp3.send();
+        }
+
+        // ARTICLE DATA CODE
+
+        // load and display the article data plotly graph
+        function articleData_buildGraph() {
+            // get the options to display on deach axis
+            var xAxis = document.getElementById('article-data-selectX').value;
+            var yAxis = document.getElementById('article-data-selectY').value;
+
+            // request the plotly code for a graph with those axes
+            var url = "ArticleData?xAxis=" + xAxis + "&yAxis=" + yAxis;
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    // display the returned plot in the page
+                    var text = xhttp.responseText;
+                    var div = document.getElementById('article-data-graph-container');
+                    replacePlotlyGraph(div, text, 'article-data-graph-plot');
+                }
+            };
+            xhttp.open("GET", url, true);
+            xhttp.send();
+        }
+
+        document.getElementById('article-data-selectX').addEventListener('change', function(event) {
+            articleData_buildGraph();
+        });
+        document.getElementById('article-data-selectY').addEventListener('change', function(event) {
+            articleData_buildGraph();
+        });
+
+        // EDITOR DATA CODE
+
+        // load and display the editor data plotly graph
+        function editorData_buildGraph() {
+            // get the options to display on deach axis
+            var xAxis = document.getElementById('editor-data-selectX').value;
+            var yAxis = document.getElementById('editor-data-selectY').value;
+
+            var url = "EditorData?xAxis=" + xAxis + "&yAxis=" + yAxis;
+
+            // request the plotly code for a graph with those axes
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                // display the returned plot in the page
+                if (this.readyState == 4 && this.status == 200) {
+                    var text = xhttp.responseText;
+                    var div = document.getElementById('editor-data-graph-container');
+                    replacePlotlyGraph(div, text, 'editor-data-graph-plot');
+                }
+            };
+            xhttp.open("GET", url, true);
+            xhttp.send();
+        }
+
+        // rebuild the graph whenever the user selects a new axis option
+        document.getElementById('editor-data-selectX').addEventListener('change', function(event) {
+            editorData_buildGraph();
+        });
+        document.getElementById('editor-data-selectY').addEventListener('change', function(event) {
+            editorData_buildGraph();
+        });
+
+        // NETWORK GRAPH CODE
+
+        // network diagram varaibles
+        var networkDiagramCategory = ''; // keep track of which category is currently selected;
+                                         // '' specified that the main index (Math) is used
+        const NETWORK_DIAGRAM_WIDTH = 800;  // network diagram display width
+        const NETWORK_DIAGRAM_HEIGHT = 800; // network diagram display height
+        var networkDiagram_centerX = 0;     // x offset (pan) of network diagram
+        var networkDiagram_centerY = 0;     // y offset (pan) of network diagram
+        var scale = 38.0;                   // how far the plot is zoomed in
+        var lastNetworkDiagramHighlight = -1;   // which of the highlight options to use;
+                                                // -1 means nothing is highlighted
+        // main network diagram canvas
+        var networkDiagramCanvas = document.getElementById('network-diagram-canvas');
+        // overlay canvas: display highlights
+        var networkDiagramOverlay = document.getElementById('network-diagram-overlay');
+        // store contents to draw on the graph
+        var networkDiagramData = {
+            pointLocs : [],
+            pointSizes : [],
+            highlightGroups : [],
+            titles : [],
+            links : []
+        };
+
+        // request and display network diagram information from the server
+        function loadNetworkDiagram() {
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    networkDiagramData = JSON.parse(xhttp.responseText);
+
+                    // change the title in the display
+                    var name = networkDiagramCategory;
+                    if (name == '') {
+                        name = 'Math';
+                    }
+                    else {
+                        name = name.split('_').join(' ');
+                    }
+                    document.getElementById('network-diagram-title').innerHTML = name + ' Articles';
+
+                    // reset the zoom and highlights of the diagram
+                    scale = 38.0;
+                    networkDiagram_centerX = 0;
+                    networkDiagram_centerY = 0;
+                    lastNetworkDiagramHighlight = -1;
+
+                    // redraw the digram and the complimentary graphs/info
+                    drawNetworkDiagram();
+                    networkDiagram_buildSideBar();
+                    networkDiagram_buildRightBar();
+                }
+            };
+            var url = 'NetworkDiagram';
+            if (networkDiagramCategory!= '') {
+                url += '?category=' + networkDiagramCategory;
+            }
+            xhttp.open("GET", url, true);
+            xhttp.send();
+        }
+       
+        // draw the network diagram to the javascript canvases
+        function drawNetworkDiagram() {
+            networkDiagramHighlight(); // redraw any highlights
+
+            ctx = networkDiagramCanvas.getContext('2d');
+            ctx.clearRect(0, 0, NETWORK_DIAGRAM_WIDTH, NETWORK_DIAGRAM_HEIGHT); // clear screen
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; // set background transparency
+
+            const xCenter = NETWORK_DIAGRAM_WIDTH / 2;
+            const yCenter = NETWORK_DIAGRAM_HEIGHT / 2;
+
+            // extract graph data into shorter variable names
+            var nPoints = networkDiagramData.pointLocs.length;
+            var pointLocs = networkDiagramData.pointLocs;
+            var pointSizes = networkDiagramData.pointSizes;
+
+            // draw link lines
+            ctx.lineWidth = 0.4;
+            ctx.strokeStyle = '#AAAAFF';
+            var links = networkDiagramData.links;
+            for (var i = 0; i < links.length; i++) {
+                for (let j of links[i]) {
+                    // calulate link line locations on the canvas
+                    var x1 = (pointLocs[i][0] - networkDiagram_centerX) * scale + xCenter;
+                    var y1 = (pointLocs[i][1] - networkDiagram_centerY) * scale + yCenter;
+                    var x2 = (pointLocs[j][0] - networkDiagram_centerX) * scale + xCenter;
+                    var y2 = (pointLocs[j][1] - networkDiagram_centerY) * scale + yCenter;
+                    // display the lines on the canvas
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.stroke();
+                }
+            }
+
+            // draw article bubbles
+            for (var i = 0; i < nPoints; i++) {
+                // calculate the bubble location
+                var x = pointLocs[i][0] - networkDiagram_centerX;
+                var y = pointLocs[i][1] - networkDiagram_centerY;
+                size = pointSizes[i] / 2;
+                // draw the bubble on the canvas
+                ctx.beginPath();
+                ctx.arc(xCenter + x * scale, yCenter + y * scale, size, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+        // draw the network diagram side bar
+        function networkDiagram_buildSideBar() {
+            // clear the html
+            var sideBar = document.getElementById('side-bar');
+            sideBar.innerHTML = '';
+
+            // if there is nothing to display, hide the side bar
+            if (networkDiagramData.highlightGroups.length == 0) {
+                sideBar.style.display = 'none';
+                return;
+            }
+
+            // add a clickable entry for each highlight group
+            sideBar.style.display = 'block';
+            for (var i = 0; i < networkDiagramData.highlightGroups.length; i++) {
+                var categoryName = networkDiagramData.highlightGroups[i][0];
+
+                // create the node
+                var node = document.createElement('button');
+                node.innerHTML = categoryName.split('_').join(' ');
+                node.categoryIndex = i;
+                node.classList.add('w3-button');
+                node.classList.add('w3-block');
+                node.classList.add('w3-hover-red');
+                sideBar.appendChild(node);
+
+                // add event handlers
+                node.addEventListener('mouseover', function(event) {
+                    lastNetworkDiagramHighlight = event.target.categoryIndex;
+                    networkDiagramHighlight();
+                });
+                node.addEventListener('click', function(event) {
+                    networkDiagramClick(event.target.categoryIndex);
+                });
+            }
+        }
+        // draw the right bar information on the network diagram tab
+        function networkDiagram_buildRightBar() {
+            // Load and display the page view graph for the category
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    var rightBar = document.getElementById('network-diagram-graph-container');
+                    replacePlotlyGraph(rightBar, xhttp.responseText, 'network-diagram-page-view-graph');
+                    window.dispatchEvent(new Event('resize'));
+                }
+            };
+            var url = "PageViews";
+            if (networkDiagramCategory != '') {
+                url += '?category=' + networkDiagramCategory;
+            }
+            xhttp.open("GET", url, true);
+            xhttp.send();
+
+            // Load and display the category information
+            var xhttp2 = new XMLHttpRequest();
+            xhttp2.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    var info = JSON.parse(xhttp2.responseText);
+                    
+                    document.getElementById('network-diagram-category-info').innerHTML = 
+                        '<ul class="w3-ul">' + 
+                        '<li>Number of Articles: ' + info.numArticles + '</li>' +
+                        '<li>Page Views (last 5 years): ' + info.totalViews + '</li>' +
+                        '<li>Total Number of Edits: ' + info.numEdits + '</li>' +
+                        '<li>Total Flagged Edits: ' + info.flaggedEdits + '</li>' +
+                        '<li>Number of Editors: ' + info.numEditors + '</li>' +
+                        '<li>Total Size (characters): ' + info.totalSize + '</li>' +
+                        '<li>Weighted Student Reference Index: ' + Math.round(info.weightedSRI * 1000) / 1000 + '</li>' +
+                        '</ul>';
+                }
+            };
+            var url2 = "CategoryInfo";
+            if (networkDiagramCategory != '') {
+                url2 += '?category=' + networkDiagramCategory;
+            }
+            xhttp2.open("GET", url2, true);
+            xhttp2.send();
+        }
+
+        // network diagramcategory selection and navigation:
+        // highlight a category of articles in the network diagram
+        function networkDiagramHighlight() {
+            var i = lastNetworkDiagramHighlight;
+            ctx = networkDiagramOverlay.getContext('2d');
+            ctx.clearRect(0, 0, NETWORK_DIAGRAM_WIDTH, NETWORK_DIAGRAM_HEIGHT);
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.4)';
+
+            // return if no highlight category is selected
+            if (i < 0 || i >= networkDiagramData.highlightGroups.length) {
+                return;
+            }
+
+            const xCenter = NETWORK_DIAGRAM_WIDTH / 2;
+            const yCenter = NETWORK_DIAGRAM_HEIGHT / 2;
+
+            // get the network diagram information in shorter variable names
+            var nums = networkDiagramData.highlightGroups[i][1];
+            var nPoints = nums.length;
+            var pointLocs = networkDiagramData.pointLocs;
+            var pointSizes = networkDiagramData.pointSizes;
+            for (var i = 0; i < nPoints; i++) {
+                // find the bubble's location and size
+                var num = nums[i];
+                x = pointLocs[num][0] - networkDiagram_centerX;
+                y = pointLocs[num][1] - networkDiagram_centerY;
+                size = pointSizes[num] / 2;
+                // draw the bubble on the canvas
+                ctx.beginPath();
+                ctx.arc(xCenter + x * scale, yCenter + y * scale, size, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+        // handle the user selecting a new category for the network diagram
+        function networkDiagramClick(i) {
+            networkDiagramCategory = networkDiagramData.highlightGroups[i][0]
+            loadNetworkDiagram();
+        }
+        // handle a click to go back to network graph of all the articles
+        document.getElementById('network-diagram-back-btn').addEventListener('click',
+            function(event) {
+                networkDiagramCategory = '';
+                loadNetworkDiagram();
+            }
+        );
+
+        // handle navigation on the network diagram
+        var mainCanvasDragLoc = [0,0]; // save information about dragging the canvas
+        var mainCanvasIsDragging = false;
+        var networkDiagramMouseDown = false;
+        // zoom the network diagram canvas on scroll
+        document.getElementById('network-diagram-container').addEventListener('wheel',
+            function (event) {
+                scale *= 1 - event.deltaY * 0.01;
+                drawNetworkDiagram();
+                return false;
+            }, false
+        );
+        // record mouse down for dragging the network diagram
+        document.getElementById('network-diagram-container').addEventListener('mousedown',
+            function (event) {
+                mainCanvasIsDragging = true;
+                mainCanvasDragStart = [event.offsetX, event.offsetY];
+            }
+        );
+        // record mouse up for dragging the network diagram
+        document.getElementById('network-diagram-container').addEventListener('mouseup',
+            function (event) {
+                mainCanvasIsDragging = false;
+            }
+        );
+        // get the article bubble at certain coordinates of the network diagram;
+        // return the article index of the bubble or -1 if none found
+        function getScatterBubbleAtLocation(locX, locY) {
+            const xCenter = NETWORK_DIAGRAM_WIDTH / 2;
+            const yCenter = NETWORK_DIAGRAM_HEIGHT / 2;
+
+            // get the network diagram's info in shorter variable names
+            var nPoints = networkDiagramData.pointLocs.length;
+            var pointLocs = networkDiagramData.pointLocs;
+            var pointSizes = networkDiagramData.pointSizes;
+            for (var i = nPoints - 1; i >= 0; i--) {
+                // find the article bubble's location
+                var x = xCenter + (pointLocs[i][0] - networkDiagram_centerX) * scale;
+                var y = yCenter + (pointLocs[i][1] - networkDiagram_centerY) * scale;
+                size = pointSizes[i] / 2;
+                // check if the mouse is over the bubble location
+                d = Math.hypot(locX - x, locY - y);
+                if (d <= size) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+        // handle element higlighting/draggin when the mouse is moved over the network diagram
+        document.getElementById('network-diagram-container').addEventListener('mousemove',
+            function (event) {
+                networkDiagramHighlight();
+
+                networkDiagramMouseDown = false;
+                
+                // pan the canvas is the mouse is dragging
+                if (mainCanvasIsDragging) {
+                    var dx = event.offsetX - mainCanvasDragStart[0];
+                    var dy = event.offsetY - mainCanvasDragStart[1];
+                    mainCanvasDragStart = [event.offsetX, event.offsetY]; // record drag location
+                    networkDiagram_centerX -= dx / scale;
+                    networkDiagram_centerY -= dy / scale;
+                    drawNetworkDiagram();
+                }
+                // otherwise highlight a bubble under the cursor
+                else {
+                    var index = getScatterBubbleAtLocation(event.offsetX, event.offsetY);
+                    var title = '';
+                    if (index != -1) {
+                        title = networkDiagramData.titles[index];
+
+                        // get the location of the bubble on the diagram
+                        const xCenter = NETWORK_DIAGRAM_WIDTH / 2;
+                        const yCenter = NETWORK_DIAGRAM_HEIGHT / 2;
+                        var x = xCenter + (networkDiagramData.pointLocs[index][0] - networkDiagram_centerX) * scale;
+                        var y = yCenter + (networkDiagramData.pointLocs[index][1] - networkDiagram_centerY) * scale;
+                        var size = networkDiagramData.pointSizes[index] / 2;
+
+                        // highlight the bubble on the diagram
+                        var ctx = networkDiagramOverlay.getContext('2d');
+                        ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+                        ctx.beginPath();
+                        ctx.arc(x, y, size, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }
+                    // display the title of the highlighted article below the diagram
+                    document.getElementById('extra-display').innerHTML = title;
+                }
+            }
+        );
+        // record when the mouse id down on the network diagram to record mouse dragging
+        document.getElementById('network-diagram-container').addEventListener('mousedown',
+            function(event) {  
+                networkDiagramMouseDown = true;
+            }
+        );
+        // allow clicking of bubbles on the network diagram to display more article info
+        document.getElementById('network-diagram-container').addEventListener('click',
+            function(event) {
+                // discard clicks if the mouse was dragged while down
+                if (networkDiagramMouseDown) {
+                    networkDiagramMouseDown = false;
+                    // switch to article info display for a clicked bubble
+                    var index = getScatterBubbleAtLocation(event.offsetX, event.offsetY);
+                    if (index != -1) {
+                        setDisplayArticleInfo(networkDiagramData.titles[index]);                        
+                    }
+                }
+            }
+        );
+
+        // automatically load the network diagram of all the articles
+        loadNetworkDiagram();
+    </script>
+</body>
+</html>
